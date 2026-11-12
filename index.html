@@ -1,0 +1,246 @@
+<!DOCTYPE html> 
+<html lang="ru"> 
+<head> 
+    <meta charset="utf-8"> 
+    <title>Пироги Винни-Пуха — Уровень 3</title> 
+    <style> 
+        /* Базовые стили для страницы игры */
+        body { 
+            margin:0; 
+            height:100vh; 
+            overflow:hidden; /* Прячем полосы прокрутки */
+            background:linear-gradient(#87ceeb,#c2e59c); /* Небесно-зеленый градиент */
+            font-family:sans-serif; 
+        } 
+        
+        /* Стили для Винни-Пуха */
+        #pooh { 
+            position:absolute; 
+            bottom:20px; 
+            left:50%; 
+            transform:translateX(-50%); /* Центрирование мишки по горизонтали */
+            font-size:90px; 
+        } 
+        
+        /* Счетчик съеденных пирогов */
+        #score { 
+            position:absolute; 
+            top:15px; 
+            left:15px; 
+            font-size:24px; 
+            font-weight:bold; 
+        } 
+        
+        /* Кнопка запуска игры */
+        #start-btn { 
+            position:absolute; 
+            top:15px; 
+            right:15px; 
+            font-size:20px; 
+            padding:10px 20px; 
+            cursor:pointer; 
+            background-color: #ff9800; 
+            border: none; 
+            border-radius: 5px; 
+            color: white; 
+            font-weight: bold; 
+        } 
+        
+        /* Состояние кнопки, когда игра уже идет */
+        #start-btn:disabled { 
+            background-color: #ccc; 
+            cursor: not-allowed; 
+        } 
+        
+        /* Стили для летящих пирогов */
+        .pie { 
+            position:absolute; 
+            font-size:52px; 
+            user-select:none; /* Запрет выделения текста при кликах */
+            transition: none; 
+        } 
+        
+        /* Стили для вылетающих капель меда (частиц) */
+        .particle { 
+            position: absolute; 
+            font-size: 24px; 
+            user-select: none; 
+            pointer-events: none; /* Чтобы частицы не мешали кликам */
+            animation: explode 0.6s ease-out forwards; /* Анимация взрыва */
+        } 
+        
+        /* Анимация разлета частиц меда */
+        @keyframes explode { 
+            0% { 
+                transform: translate(0, 0) scale(1); 
+                opacity: 1; 
+            } 
+            100% { 
+                /* Переменные --dx и --dy задаются динамически в JS */
+                transform: translate(var(--dx), var(--dy)) scale(0.5); 
+                opacity: 0; 
+            } 
+        } 
+    </style> 
+</head> 
+<body> 
+
+    <div id="score">Съедено: 0</div> 
+    <button id="start-btn">Старт</button> 
+    <div id="pooh">🐻</div> 
+
+    <script> 
+        // Получение ссылок на элементы страницы
+        const scoreDiv = document.getElementById('score'); 
+        const startBtn = document.getElementById('start-btn'); 
+        
+        let score = 0;             // Текущий счет игры
+        let gameInterval = null;   // Таймер для регулярного создания пирогов
+        let gameTimeout = null;    // Таймер окончания игры (через 20 сек)
+        let activePies = [];       // Массив для хранения всех живых пирогов на экране
+
+        // Навешиваем событие клика на кнопку «Старт»
+        startBtn.addEventListener('click', startGame); 
+
+        // Функция обновления текста счета на экране
+        function updateScore() { 
+            scoreDiv.textContent = `Съедено: ${score}`; 
+        } 
+
+        // Функция запуска игрового процесса
+        function startGame() { 
+            score = 0; 
+            updateScore(); 
+            startBtn.disabled = true; // Деактивируем кнопку на время игры
+            activePies = []; 
+            
+            // Запуск генерации пирогов каждые 700 миллисекунд
+            gameInterval = setInterval(createPie, 700); 
+            // Установка таймера завершения игры на 20000 миллисекунд (20 секунд)
+            gameTimeout = setTimeout(endGame, 20000); 
+        } 
+
+        // Функция создания нового пирога
+        function createPie() { 
+            const pie = document.createElement('div'); 
+            pie.classList.add('pie'); 
+            pie.textContent = '🥧'; 
+
+            // Расчет случайных координат для появления пирога (в верхней половине экрана)
+            const minTop = 80; 
+            const maxTop = window.innerHeight / 2; 
+            const maxLeft = window.innerWidth - 70; 
+            const randomTop = Math.floor(Math.random() * (maxTop - minTop)) + minTop; 
+            const randomLeft = Math.floor(Math.random() * maxLeft); 
+
+            pie.style.top = `${randomTop}px`; 
+            pie.style.left = `${randomLeft}px`; 
+
+            document.body.appendChild(pie); // Добавляем пирог на страницу
+            activePies.push(pie);           // Сохраняем в список активных
+
+            flyToPooh(pie); // Запускаем полет пирога к Винни-Пуху
+        } 
+
+        // Функция анимации полета пирога к мишке
+        function flyToPooh(pie) { 
+            // Получаем начальные координаты пирога и координаты Винни-Пуха
+            const start = pie.getBoundingClientRect(); 
+            const pooh = document.getElementById('pooh').getBoundingClientRect(); 
+            
+            const x0 = start.left, y0 = start.top; 
+            // Вычисляем конечную точку так, чтобы пирог летел в центр мишки
+            const x1 = pooh.left + pooh.width / 2 - start.width / 2; 
+            const y1 = pooh.top + pooh.height / 2 - start.height / 2; 
+
+            // Расчет расстояния и длительности полета (от 500мс до 2000мс в зависимости от дистанции)
+            const dist = Math.hypot(x1 - x0, y1 - y0); 
+            const dur = Math.min(2000, Math.max(500, dist * 2)); 
+            
+            const arc = dist * 0.4; // Высота дуги полета
+            const t0 = performance.now(); // Время старта анимации
+
+            // Кадр анимации полета
+            function frame(now) { 
+                if (!pie.isConnected) return; // Если пирог уже удален, останавливаемся
+
+                // Вычисляем прогресс времени от 0 до 1
+                let t = Math.min(1, (now - t0) / dur); 
+                // Плавное замедление (easing)
+                const eased = 1 - Math.pow(1 - t, 2); 
+
+                // Расчет текущих координат X и Y с учетом параболической дуги
+                const x = x0 + (x1 - x0) * eased; 
+                const y = y0 + (y1 - y0) * eased - arc * 4 * eased * (1 - eased); 
+
+                pie.style.left = x + 'px'; 
+                pie.style.top = y + 'px'; 
+                // Вращение пирога в полете (на 720 градусов)
+                pie.style.transform = `rotate(${eased * 720}deg)`; 
+
+                if (t < 1) { 
+                    // Если полет не окончен, запрашиваем следующий кадр
+                    requestAnimationFrame(frame); 
+                } else { 
+                    // Пирог прилетел к мишке: удаляем его, увеличиваем счет и создаем частицы
+                    pie.remove(); 
+                    score++; 
+                    updateScore(); 
+                    spawnParticles(x1, y1); 
+                } 
+            } 
+            requestAnimationFrame(frame); // Запуск первого кадра
+        } 
+
+        // Функция создания брызг меда при поедании пирога
+        function spawnParticles(x, y) { 
+            // Случайное количество горшочков с медом (от 3 до 5)
+            const count = Math.floor(Math.random() * 3) + 3; 
+            
+            for (let i = 0; i < count; i++) { 
+                const particle = document.createElement('div'); 
+                particle.classList.add('particle'); 
+                particle.textContent = '🍯'; 
+                particle.style.left = `${x}px`; 
+                particle.style.top = `${y}px`; 
+
+                // Вычисление случайного угла и расстояния для разлета горшочка
+                const angle = Math.random() * Math.PI * 2; 
+                const distance = Math.floor(Math.random() * 41) + 60; // от 60 до 100 пикселей
+                const dx = Math.cos(angle) * distance; 
+                const dy = Math.sin(angle) * distance; 
+
+                // Передаем вычисленные сдвиги в CSS-переменные для анимации @keyframes
+                particle.style.setProperty('--dx', `${dx}px`); 
+                particle.style.setProperty('--dy', `${dy}px`); 
+
+                document.body.appendChild(particle); 
+
+                // Удаляем частицу из документа после завершения анимации (600мс)
+                setTimeout(() => { 
+                    particle.remove(); 
+                }, 600); 
+            } 
+        } 
+
+        // Функция завершения игры
+        function endGame() { 
+            clearInterval(gameInterval); // Останавливаем создание пирогов
+            clearTimeout(gameTimeout);   // Очищаем таймер игры
+            
+            // Удаляем все оставшиеся на экране пироги
+            activePies.forEach(pie => { 
+                if (pie.isConnected) pie.remove(); 
+            }); 
+            activePies = []; 
+            
+            // Удаляем оставшиеся частицы меда
+            document.querySelectorAll('.particle').forEach(p => p.remove()); 
+            
+            // Выводим финальное окно с результатом
+            alert(`Съедено пирогов: ${score}`); 
+            startBtn.disabled = false; // Снова активируем кнопку «Старт»
+        } 
+    </script> 
+</body> 
+</html>
